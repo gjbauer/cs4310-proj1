@@ -22,7 +22,6 @@ union header {
   struct {
     union header *ptr;
     unsigned int size;
-    pthread_mutex_t lock;// = PTHREAD_MUTEX_INITIALIZER;
   } s;
   Align x;
 };
@@ -95,10 +94,12 @@ xmalloc(size_t nbytes)
     base.s.ptr = freep = prevp = &base;
     base.s.size = 0;
   }
+  
   for(p = prevp->s.ptr; ; prevp = p, p = p->s.ptr){
     if(p->s.size >= nunits){
-      if(p->s.size == nunits)
+      if(p->s.size == nunits) {
         prevp->s.ptr = p->s.ptr;
+      }
       else {
         p->s.size -= nunits;
         p += p->s.size;
@@ -121,5 +122,8 @@ void*
 xrealloc(void* prev, size_t nn)
 {
   // TODO: implement a working realloc
+  // This is where we are failing the next test...
   return prev + nn;
 }
+
+
