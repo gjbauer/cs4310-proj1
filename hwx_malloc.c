@@ -77,18 +77,16 @@ morecore(size_t nu)
     return 0;
   hp = (Header*)p;
   hp->s.size = nu;
-  hp->s.lock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
   xfree_helper((void*)(hp + 1));
   return freep;
 }
 
 void*
-xmalloc(size_t nbytes)
+xmalloc_helper(size_t nbytes)
 {
   Header *p, *prevp;
   unsigned int nunits;
 
-  pthread_mutex_lock(&lock);
   nunits = (nbytes + sizeof(Header) - 1)/sizeof(Header) + 1;
   if((prevp = freep) == 0){
     base.s.ptr = freep = prevp = &base;
@@ -97,21 +95,18 @@ xmalloc(size_t nbytes)
   
   for(p = prevp->s.ptr; ; prevp = p, p = p->s.ptr){
     if(p->s.size >= nunits){
-      if(p->s.size == nunits) {
+      if(p->s.size == nunits)
         prevp->s.ptr = p->s.ptr;
-      }
       else {
         p->s.size -= nunits;
         p += p->s.size;
         p->s.size = nunits;
       }
       freep = prevp;
-      pthread_mutex_unlock(&lock);
       return (void*)(p + 1);
     }
     if(p == freep) {
       if((p = morecore(nunits)) == 0) {
-        pthread_mutex_unlock(&lock);
         return 0;
       }
     }
@@ -119,11 +114,36 @@ xmalloc(size_t nbytes)
 }
 
 void*
+xmalloc(size_t nbytes)
+{
+  pthread_mutex_lock(&lock);
+  void *ret = xmalloc_helper(nbytes);
+  pthread_mutex_unlock(&lock);
+  return ret;
+}
+
+void*
 xrealloc(void* prev, size_t nn)
 {
+  pthread_mutex_lock(&lock);
+  Header *p;
+
+  p = (Header*)prev - 1;
+  int nunits = p->s.size;
   // TODO: implement a working realloc
   // This is where we are failing the next test...
-  return prev + nn;
+  void *new = xmalloc_helper(nn);
+  
+  memset(new, 0, nn);
+  // nunits = (nbytes + sizeof(Header) - 1)/sizeof(Header) + 1
+  int nbytes = nunits*(sizeof(Header)+1) - sizeof(Header) + 1; // In reverse...
+  memcpy(new, prev, nbytes);
+  
+  xfree_helper(prev);
+  
+  //Header *bp = (Header*)new - 1;
+  pthread_mutex_unlock(&lock);
+  return new;
 }
 
 
