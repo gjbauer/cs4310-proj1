@@ -1,0 +1,15 @@
+gabrielbauer@archlinux-t490s:~/Downloads/starter-proj1^main ±
+% time ./collatz-ivec-hwx 12000                                                                                                                                                                  25-03-25 - 14:28:13
+Max steps is at 10971: 267 steps
+./collatz-ivec-hwx 12000  9.48s user 0.21s system 102% cpu 9.447 total
+
+gabrielbauer@archlinux-t490s:~/Downloads/starter-proj1^main ±
+% time ./collatz-ivec-opt 12000                                                                                                                                                                  25-03-25 - 14:28:30
+Max steps is at 10971: 267 steps
+./collatz-ivec-opt 12000  0.11s user 0.91s system 132% cpu 0.766 total
+
+gabrielbauer@archlinux-t490s:~/Downloads/starter-proj1^main ±
+% time ./collatz-ivec-sys 12000                                                                                                                                                                  25-03-25 - 14:28:40
+Max steps is at 10971: 267 steps
+./collatz-ivec-sys 12000  0.05s user 0.05s system 234% cpu 0.043 total
+
