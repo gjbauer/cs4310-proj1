@@ -1,3 +1,5 @@
+The highest number that could be run in under 10 seconds was 12000 for the homework allocator, which ran in almost identical time in the optimized versus system allocator, which was miniscule in comparison. The highest number that I ram for the optimized allocator was 500k, which, contrary to what the test script said, gave the correct output and in the correct amount of time. It ran about twice as fast on the system allocator as on the optimized one.
+
 gabrielbauer@archlinux-t490s:~/Downloads/starter-proj1^main ±
 % time ./collatz-ivec-hwx 12000                                                                                                                                                                  25-03-25 - 14:28:13
 Max steps is at 10971: 267 steps
@@ -12,4 +14,14 @@ gabrielbauer@archlinux-t490s:~/Downloads/starter-proj1^main ±
 % time ./collatz-ivec-sys 12000                                                                                                                                                                  25-03-25 - 14:28:40
 Max steps is at 10971: 267 steps
 ./collatz-ivec-sys 12000  0.05s user 0.05s system 234% cpu 0.043 total
+
+gabrielbauer@archlinux-t490s:~/Downloads/starter-proj1^main ±
+% time ./collatz-ivec-opt 500000                                                                                                                                                                 25-03-25 - 14:40:49
+Max steps is at 410011: 448 steps
+./collatz-ivec-opt 500000  7.48s user 53.78s system 130% cpu 46.991 total
+
+gabrielbauer@archlinux-t490s:~/Downloads/starter-proj1^main ±
+% time ./collatz-ivec-sys 500000                                                                                                                                                                 25-03-25 - 14:41:46
+Max steps is at 410011: 448 steps
+./collatz-ivec-sys 500000  3.87s user 2.42s system 269% cpu 2.334 total
 
