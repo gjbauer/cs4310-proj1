@@ -3,6 +3,7 @@
 #include <sys/mman.h>
 #include <pthread.h>
 #include <string.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #ifdef __linux__
 #include <sys/personality.h>
@@ -20,6 +21,12 @@ typedef struct size32_block {
 	struct size32_block *next;
 	size_t _unused[2];
 } size32_block;
+
+typedef struct size40_block {
+	size_t size;
+	struct size40_block *next;
+	size_t _unused[3];
+} size40_block;
 
 typedef struct size64_block {
 	size_t size;
@@ -39,11 +46,23 @@ typedef struct size128_block {
 	size_t _unused[14];
 } size128_block;
 
+typedef struct size136_block {
+	size_t size;
+	struct size136_block *next;
+	size_t _unused[15];
+} size136_block;
+
 typedef struct size256_block {
 	size_t size;
 	struct size256_block *next;
 	size_t _unused[30];
 } size256_block;
+
+typedef struct size264_block {
+	size_t size;
+	struct size264_block *next;
+	size_t _unused[31];
+} size264_block;
 
 typedef struct size512_block {
 	size_t size;
@@ -81,15 +100,23 @@ typedef struct size2056_block {
 	size_t _unused[255];
 } size2056_block;
 
+/*
+ * function cas(p: pointer to int, old: int, new: int) is
+ *   if *p ≠ old
+ *       return false
+ *
+ *   *p ← new
+ *
+ *   return true
+ */
+ 
+
 static pthread_mutex_t lock_24s = PTHREAD_MUTEX_INITIALIZER;
 static size24_block* size24s = 0;
-static int *count24 = 0;
 
 void* size24_free(void* ptr) {
 	size24_block* point = (size24_block*)(ptr);
 	point->size = 24;
-	/*point->next = size24s;
-	size24s = point;*/
 	
 	size24_block* prev = NULL;
 	while ((void*)point<(void*)size24s && size24s != 0) {	// Keep the blocks sorted by where they appear in memory ;)
@@ -108,9 +135,8 @@ void* size24_free(void* ptr) {
 }
 
 void* size24_setup() {
-	size24_block* page = mmap(0, 4194304, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	if (!count24) count24 = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 174762; ii++) {
+	size24_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 19418; ii++) {
 		size24_free(&(page[ii]));
 	}
 	return 0;
@@ -131,21 +157,77 @@ static size32_block* size32s = 0;
 void* size32_free(void* ptr) {
 	size32_block* point = (size32_block*)(ptr);
 	point->size = 32;
-	point->next = size32s;
-	size32s = point;
+	
+	size32_block* prev = NULL;
+	while ((void*)point<(void*)size32s && size32s != 0) {	// Keep the blocks sorted by where they appear in memory ;)
+		prev = size32s;
+		size32s = size32s->next;
+	}
+	if (prev) {
+		prev->next = point;
+		point->next = size32s;
+	}
+	else {
+		point->next = size32s;
+		size32s = point;
+	}
+	return 0;
+}
+
+void* size32_setup() {
+	size32_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 14563; ii++) {
+		size32_free(&(page[ii]));
+	}
 	return 0;
 }
 
 void* size32_malloc() {
-	if (size32s == 0) {
-		size32_block* page = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-		for (int ii = 0; ii < 128; ii++) {
-			size32_free(&(page[ii]));
-		}
+	if (size32s==0) {
+		size32_setup();
 	}
-	
 	size_t* ptr = (void*)size32s;
 	size32s = size32s->next;
+	return ptr + 1;
+}
+
+static pthread_mutex_t lock_40s = PTHREAD_MUTEX_INITIALIZER;
+static size40_block* size40s = 0;
+
+void* size40_free(void* ptr) {
+	size40_block* point = (size40_block*)(ptr);
+	point->size = 40;
+	
+	size40_block* prev = NULL;
+	while ((void*)point<(void*)size40s && size40s != 0) {	// Keep the blocks sorted by where they appear in memory ;)
+		prev = size40s;
+		size40s = size40s->next;
+	}
+	if (prev) {
+		prev->next = point;
+		point->next = size40s;
+	}
+	else {
+		point->next = size40s;
+		size40s = point;
+	}
+	return 0;
+}
+
+void* size40_setup() {
+	size40_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 11650; ii++) {
+		size40_free(&(page[ii]));
+	}
+	return 0;
+}
+
+void* size40_malloc() {
+	if (size40s==0) {
+		size40_setup();
+	}
+	size_t* ptr = (void*)size40s;
+	size40s = size40s->next;
 	return ptr + 1;
 }
 
@@ -155,19 +237,35 @@ static size64_block* size64s = 0;
 void* size64_free(void* ptr) {
 	size64_block* point = (size64_block*)(ptr);
 	point->size = 64;
-	point->next = size64s;
-	size64s = point;
+	
+	size64_block* prev = NULL;
+	while ((void*)point<(void*)size64s && size64s != 0) {	// Keep the blocks sorted by where they appear in memory ;)
+		prev = size64s;
+		size64s = size64s->next;
+	}
+	if (prev) {
+		prev->next = point;
+		point->next = size64s;
+	}
+	else {
+		point->next = size64s;
+		size64s = point;
+	}
+	return 0;
+}
+
+void* size64_setup() {
+	size64_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 7281; ii++) {
+		size64_free(&(page[ii]));
+	}
 	return 0;
 }
 
 void* size64_malloc() {
-	if (size64s == 0) {
-		size64_block* page = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-		for (int ii = 0; ii < 64; ii++) {
-			size64_free(&(page[ii]));
-		}
+	if (size64s==0) {
+		size64_setup();
 	}
-	
 	size_t* ptr = (void*)size64s;
 	size64s = size64s->next;
 	return ptr + 1;
@@ -175,23 +273,10 @@ void* size64_malloc() {
 
 static pthread_mutex_t lock_72s = PTHREAD_MUTEX_INITIALIZER;
 static size72_block* size72s = 0;
-//static int *count72 = 0;
-//static int *page72 = 0;
-
-/*void* size72_free(void* ptr) {
-	size72_block* point = (size72_block*)(ptr);
-	point->size = 72;
-	point->next = size72s;
-	size72s = point;
-	*count72 += 1;
-	return 0;
-}*/
 
 void* size72_free(void* ptr) {
 	size72_block* point = (size72_block*)(ptr);
 	point->size = 72;
-	//point->next = size24s;
-	//size24s = point;
 	
 	size72_block* prev = NULL;
 	while ((void*)point<(void*)size72s && size72s != 0) {	// Keep the blocks sorted by where they appear in memory ;)
@@ -206,134 +291,103 @@ void* size72_free(void* ptr) {
 		point->next = size72s;
 		size72s = point;
 	}
-	//*count72+=1;
-	//if (*count72 == *page72*56) munmap(size72s, 4096);
 	return 0;
 }
 
-void* size72_malloc() {
-	//if (!count72) count72 = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	//if (!page72) page72 = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	if (size72s == 0) {
-		size72_block* page = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-		//*page72+=1;
-		for (int ii = 0; ii < 56; ii++) {
-			size72_free(&(page[ii]));
-		}
-	}
-	
-	//*count72-=1;
-	size_t* ptr = (void*)size72s;
-	size72s = size72s->next;
-	return ptr + 1;
-}
-
-/*void* size72_setup() {
-	size72_block* page = mmap(0, 1000 * 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	if (!count72) count72 = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 113777; ii++) {
+void* size72_setup() {
+	size72_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 6472; ii++) {
 		size72_free(&(page[ii]));
 	}
 	return 0;
 }
 
 void* size72_malloc() {
-	if (*count72==0) {
+	if (size72s==0) {
 		size72_setup();
-		return size72_malloc();
 	}
-	else {
-		size_t* ptr = (void*)size72s;
-		size72s = size72s->next;
-		*count72-=1;
-		return ptr + 1;
-	}
-}*/
-
-/*void* size72_malloc() {
-if (!count72) count72 = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	if (size72s == 0) {
-		size72_block* page = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-		for (int ii = 0; ii < 16; ii++) {
-			size72_free(&(page[ii]));
-		}
-	}
-	*count72+=1;
-	printf("72 Allocs. = %d\n", *count72);
 	size_t* ptr = (void*)size72s;
 	size72s = size72s->next;
 	return ptr + 1;
-}*/
+}
 
-static pthread_mutex_t lock_128s = PTHREAD_MUTEX_INITIALIZER;
-static size128_block* size128s = 0;
+static pthread_mutex_t lock_136s = PTHREAD_MUTEX_INITIALIZER;
+static size136_block* size136s = 0;
 
-void* size128_free(void* ptr) {
-	size128_block* point = (size128_block*)(ptr);
-	point->size = 128;
-	point->next = size128s;
-	size128s = point;
+void* size136_free(void* ptr) {
+	size136_block* point = (size136_block*)(ptr);
+	point->size = 136;
+	
+	size136_block* prev = NULL;
+	while ((void*)point<(void*)size136s && size136s != 0) {	// Keep the blocks sorted by where they appear in memory ;)
+		prev = size136s;
+		size136s = size136s->next;
+	}
+	if (prev) {
+		prev->next = point;
+		point->next = size136s;
+	}
+	else {
+		point->next = size136s;
+		size136s = point;
+	}
 	return 0;
 }
 
-void* size128_malloc() {
-	if (size128s == 0) {
-		size128_block* page = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-		for (int ii = 0; ii < 32; ii++) {
-			size128_free(&(page[ii]));
-		}
+void* size136_setup() {
+	size136_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 3426; ii++) {
+		size136_free(&(page[ii]));
 	}
-	
-	size_t* ptr = (void*)size128s;
-	size128s = size128s->next;
+	return 0;
+}
+
+void* size136_malloc() {
+	if (size136s==0) {
+		size136_setup();
+	}
+	size_t* ptr = (void*)size136s;
+	size136s = size136s->next;
 	return ptr + 1;
 }
 
-static pthread_mutex_t lock_256s = PTHREAD_MUTEX_INITIALIZER;
-static size256_block* size256s = 0;
+static pthread_mutex_t lock_264s = PTHREAD_MUTEX_INITIALIZER;
+static size264_block* size264s = 0;
 
-void* size256_free(void* ptr) {
-	size256_block* point = (size256_block*)(ptr);
-	point->size = 256;
-	point->next = size256s;
-	size256s = point;
+void* size264_free(void* ptr) {
+	size264_block* point = (size264_block*)(ptr);
+	point->size = 264;
+	
+	size264_block* prev = NULL;
+	while ((void*)point<(void*)size264s && size264s != 0) {	// Keep the blocks sorted by where they appear in memory ;)
+		prev = size264s;
+		size264s = size264s->next;
+	}
+	if (prev) {
+		prev->next = point;
+		point->next = size264s;
+	}
+	else {
+		point->next = size264s;
+		size264s = point;
+	}
 	return 0;
 }
 
-void* size256_malloc() {
-	if (size256s == 0) {
-		size256_block* page = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-		for (int ii = 0; ii < 16; ii++) {
-			size256_free(&(page[ii]));
-		}
+void* size264_setup() {
+	size264_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 1765; ii++) {
+		size264_free(&(page[ii]));
 	}
-	
-	size_t* ptr = (void*)size256s;
-	size256s = size256s->next;
-	return ptr + 1;
-}
-
-static pthread_mutex_t lock_512s = PTHREAD_MUTEX_INITIALIZER;
-static size512_block* size512s = 0;
-
-void* size512_free(void* ptr) {
-	size512_block* point = (size512_block*)(ptr);
-	point->size = 512;
-	point->next = size512s;
-	size512s = point;
 	return 0;
 }
 
-void* size512_malloc() {
-	if (size512s == 0) {
-		size512_block* page = mmap(0, 8192, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-		for (int ii = 0; ii < 16; ii++) {
-			size512_free(&(page[ii]));
-		}
+void* size264_malloc() {
+	if (size264s==0) {
+		size264_setup();
 	}
-	
-	size_t* ptr = (void*)size512s;
-	size512s = size512s->next;
+	size_t* ptr = (void*)size264s;
+	size264s = size264s->next;
 	return ptr + 1;
 }
 
@@ -343,44 +397,37 @@ static size520_block* size520s = 0;
 void* size520_free(void* ptr) {
 	size520_block* point = (size520_block*)(ptr);
 	point->size = 520;
-	point->next = size520s;
-	size520s = point;
+	
+	size520_block* prev = NULL;
+	while ((void*)point<(void*)size520s && size520s != 0) {	// Keep the blocks sorted by where they appear in memory ;)
+		prev = size520s;
+		size520s = size520s->next;
+	}
+	if (prev) {
+		prev->next = point;
+		point->next = size520s;
+	}
+	else {
+		point->next = size520s;
+		size520s = point;
+	}
+	return 0;
+}
+
+void* size520_setup() {
+	size520_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 896; ii++) {
+		size520_free(&(page[ii]));
+	}
 	return 0;
 }
 
 void* size520_malloc() {
-	if (size520s == 0) {
-		size520_block* page = mmap(0, 8192, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-		for (int ii = 0; ii < 15; ii++) {
-			size520_free(&(page[ii]));
-		}
+	if (size520s==0) {
+		size520_setup();
 	}
-	
 	size_t* ptr = (void*)size520s;
 	size520s = size520s->next;
-	return ptr + 1;
-}
-
-static pthread_mutex_t lock_1024s = PTHREAD_MUTEX_INITIALIZER;
-static size1024_block* size1024s = 0;
-
-void* size1024_free(void* ptr) {
-	size1024_block* point = (size1024_block*)(ptr);
-	point->size = 1024;
-	point->next = size1024s;
-	size1024s = point;
-	return 0;
-}
-
-void* size1024_malloc() {
-	if (size1024s == 0) {
-		size1024_block* page = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-		for (int ii = 0; ii < 4; ii++) {
-			size1024_free(&(page[ii]));
-		}
-	}
-	size_t* ptr = (void*)size1024s;
-	size1024s = size1024s->next;
 	return ptr + 1;
 }
 
@@ -390,66 +437,37 @@ static size1032_block* size1032s = 0;
 void* size1032_free(void* ptr) {
 	size1032_block* point = (size1032_block*)(ptr);
 	point->size = 1032;
-	point->next = size1032s;
-	size1032s = point;
+	
+	size1032_block* prev = NULL;
+	while ((void*)point<(void*)size1032s && size1032s != 0) {	// Keep the blocks sorted by where they appear in memory ;)
+		prev = size1032s;
+		size1032s = size1032s->next;
+	}
+	if (prev) {
+		prev->next = point;
+		point->next = size1032s;
+	}
+	else {
+		point->next = size1032s;
+		size1032s = point;
+	}
+	return 0;
+}
+
+void* size1032_setup() {
+	size1032_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 451; ii++) {
+		size1032_free(&(page[ii]));
+	}
 	return 0;
 }
 
 void* size1032_malloc() {
-	if (size1032s == 0) {
-		size1032_block* page = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-		for (int ii = 0; ii < 3; ii++) {
-			size1032_free(&(page[ii]));
-		}
+	if (size1032s==0) {
+		size1032_setup();
 	}
 	size_t* ptr = (void*)size1032s;
 	size1032s = size1032s->next;
-	return ptr + 1;
-}
-
-/*static pthread_mutex_t lock_2048s = PTHREAD_MUTEX_INITIALIZER;
-static size2048_block* size2048s = 0;
-
-void* size2048_free(void* ptr) {
-	size2048_block* point = (size2048_block*)(ptr);
-	point->size = 2048;
-	point->next = size2048s;
-	size2048s = point;
-	return 0;
-}
-
-void* size2048_malloc() {
-	if (size2048s == 0) {
-		size2048_block* page = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-		for (int ii = 0; ii < 2; ii++) {
-			size2048_free(&(page[ii]));
-		}
-	}
-	size_t* ptr = (void*)size2048s;
-	size2048s = size2048s->next;
-	return ptr + 1;
-}*/
-
-static pthread_mutex_t lock_2056s = PTHREAD_MUTEX_INITIALIZER;
-static size2056_block* size2056s = 0;
-
-void* size2056_free(void* ptr) {
-	size2056_block* point = (size2056_block*)(ptr);
-	point->size = 2056;
-	point->next = size2056s;
-	size2056s = point;
-	return 0;
-}
-
-void* size2056_malloc() {
-	if (size2056s == 0) {
-		size2056_block* page = mmap(0, 8192, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-		for (int ii = 0; ii < 3; ii++) {
-			size2056_free(&(page[ii]));
-		}
-	}
-	size_t* ptr = (void*)size2056s;
-	size2056s = size2056s->next;
 	return ptr + 1;
 }
 
@@ -476,6 +494,11 @@ xfree(void* ap)
   	size32_free(ptr);
   	pthread_mutex_unlock(&lock_32s);
   	break;
+  case 40:
+  	pthread_mutex_lock(&lock_40s);
+  	size40_free(ptr);
+  	pthread_mutex_unlock(&lock_40s);
+  	break;
   case 64:
   	pthread_mutex_lock(&lock_64s);
   	size64_free(ptr);
@@ -486,40 +509,25 @@ xfree(void* ap)
   	size72_free(ptr);
   	pthread_mutex_unlock(&lock_72s);
   	break;
-  case 128:
-  	pthread_mutex_lock(&lock_128s);
-  	size128_free(ptr);
-  	pthread_mutex_unlock(&lock_128s);
+  case 136:
+  	pthread_mutex_lock(&lock_136s);
+  	size136_free(ptr);
+  	pthread_mutex_unlock(&lock_136s);
   	break;
-  case 256:
-  	pthread_mutex_lock(&lock_256s);
-  	size256_free(ptr);
-  	pthread_mutex_unlock(&lock_256s);
-  	break;
-  case 512:
-  	pthread_mutex_lock(&lock_512s);
-  	size512_free(ptr);
-  	pthread_mutex_unlock(&lock_512s);
+  case 264:
+  	pthread_mutex_lock(&lock_264s);
+  	size264_free(ptr);
+  	pthread_mutex_unlock(&lock_264s);
   	break;
   case 520:
   	pthread_mutex_lock(&lock_520s);
   	size520_free(ptr);
   	pthread_mutex_unlock(&lock_520s);
   	break;
-  case 1024:
-  	pthread_mutex_lock(&lock_1024s);
-  	size1024_free(ptr);
-  	pthread_mutex_unlock(&lock_1024s);
-  	break;
   case 1032:
   	pthread_mutex_lock(&lock_1032s);
   	size1032_free(ptr);
   	pthread_mutex_unlock(&lock_1032s);
-  	break;
-  case 2056:
-  	pthread_mutex_lock(&lock_2056s);
-  	size2056_free(ptr);
-  	pthread_mutex_unlock(&lock_2056s);
   	break;
   default:
   	xfree_helper(ap);
@@ -530,13 +538,19 @@ xfree(void* ap)
 void*
 xmalloc_helper(size_t nbytes)
 {
-  #ifdef __linux__
-  personality(ADDR_NO_RANDOMIZE);
-  #endif
   //printf("xmalloc(%ld)\n", nbytes);
-  size_t* block = mmap(0, nbytes, PROT_READ|PROT_WRITE,
+  size_t* block = 0;
+  //nbytes += sizeof(long);
+  if (nbytes > 4096) {
+  	size_t pages = (nbytes + (4096 - 1)) / 4096;	// Idiom for rounded division...number of pages to allocate
+  	block = mmap(0, pages * 4096, PROT_READ|PROT_WRITE,
            MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-  *block = nbytes;
+        *block = pages * 4096;
+  } else {
+  	block = mmap(0, nbytes, PROT_READ|PROT_WRITE,
+           MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+        *block = nbytes;
+  }
   return block + 1;
 }
 
@@ -545,12 +559,9 @@ void*
 xmalloc(size_t nbytes)
 {
   personality(ADDR_NO_RANDOMIZE);
-  if (size24s == 0) size24_setup();
-  //if (size72s == 0) size72_setup();
   nbytes += sizeof(size_t);
   void *ptr;
   //printf("xmalloc(%ld)\n", nbytes);
-  //static int i = 0;
   switch (nbytes) {
   case 24:
   	pthread_mutex_lock(&lock_24s);
@@ -564,6 +575,12 @@ xmalloc(size_t nbytes)
   	pthread_mutex_unlock(&lock_32s);
   	return ptr;
   	break;
+  case 40:
+  	pthread_mutex_lock(&lock_40s);
+  	ptr = size40_malloc();
+  	pthread_mutex_unlock(&lock_40s);
+  	return ptr;
+  	break;
   case 64:
   	pthread_mutex_lock(&lock_64s);
   	ptr = size64_malloc();
@@ -573,25 +590,20 @@ xmalloc(size_t nbytes)
   case 72:
   	pthread_mutex_lock(&lock_72s);
   	ptr = size72_malloc();
+  	//printf("72 Allocs. (%d)\n", ++s72);
   	pthread_mutex_unlock(&lock_72s);
   	return ptr;
   	break;
-  case 128:
-  	pthread_mutex_lock(&lock_128s);
-  	ptr = size128_malloc();
-  	pthread_mutex_unlock(&lock_128s);
+  case 136:
+  	pthread_mutex_lock(&lock_136s);
+  	ptr = size136_malloc();
+  	pthread_mutex_unlock(&lock_136s);
   	return ptr;
   	break;
-  case 256:
-  	pthread_mutex_lock(&lock_256s);
-  	ptr = size256_malloc();
-  	pthread_mutex_unlock(&lock_256s);
-  	return ptr;
-  	break;
-  case 512:
-  	pthread_mutex_lock(&lock_512s);
-  	ptr = size512_malloc();
-  	pthread_mutex_unlock(&lock_512s);
+  case 264:
+  	pthread_mutex_lock(&lock_264s);
+  	ptr = size264_malloc();
+  	pthread_mutex_unlock(&lock_264s);
   	return ptr;
   	break;
   case 520:
@@ -600,22 +612,10 @@ xmalloc(size_t nbytes)
   	pthread_mutex_unlock(&lock_520s);
   	return ptr;
   	break;
-  case 1024:
-  	pthread_mutex_lock(&lock_1024s);
-  	ptr = size1024_malloc();
-  	pthread_mutex_unlock(&lock_1024s);
-  	return ptr;
-  	break;
   case 1032:
   	pthread_mutex_lock(&lock_1032s);
   	ptr = size1032_malloc();
   	pthread_mutex_unlock(&lock_1032s);
-  	return ptr;
-  	break;
-  case 2056:
-  	pthread_mutex_lock(&lock_2056s);
-  	ptr = size2056_malloc();
-  	pthread_mutex_unlock(&lock_2056s);
   	return ptr;
   	break;
   default:
@@ -629,11 +629,12 @@ xrealloc(void* prev, size_t nn)
 {
   // TODO: implement a working realloc
   // This is where we are failing the next test...
-  void *new = xmalloc(nn);
+  size_t *new = xmalloc(nn);
   size_t *ptr = (size_t*)prev-1;
   
   memset(new, 0, nn);
-  memcpy(new, prev, *ptr);
+  if (nn >= *ptr)
+  	memcpy(new, prev, *ptr);
   
   xfree(prev);
   
