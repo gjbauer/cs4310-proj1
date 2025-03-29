@@ -84,7 +84,6 @@ typedef struct size2056_block {
 static pthread_mutex_t lock_24s = PTHREAD_MUTEX_INITIALIZER;
 static size24_block* size24s = 0;
 static int *count24 = 0;
-//static int *page24 = 0;
 
 void* size24_free(void* ptr) {
 	size24_block* point = (size24_block*)(ptr);
@@ -105,33 +104,25 @@ void* size24_free(void* ptr) {
 		point->next = size24s;
 		size24s = point;
 	}
-	*count24+=1;
-	//if (*count24 == *page24 * 85000000) munmap(size24s, *page24 * 2048000000);
 	return 0;
 }
 
 void* size24_setup() {
-	size24_block* page = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	size24_block* page = mmap(0, 4194304, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
 	if (!count24) count24 = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	//if (!page24) page24 = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	//*page24+=1;
-	for (int ii = 0; ii < 170; ii++) {
+	for (int ii = 0; ii < 174762; ii++) {
 		size24_free(&(page[ii]));
 	}
 	return 0;
 }
 
 void* size24_malloc() {
-	if (*count24==0) {
+	if (size24s==0) {
 		size24_setup();
-		return size24_malloc();
 	}
-	else {
-		size_t* ptr = (void*)size24s;
-		size24s = size24s->next;
-		*count24-=1;
-		return ptr + 1;
-	}
+	size_t* ptr = (void*)size24s;
+	size24s = size24s->next;
+	return ptr + 1;
 }
 
 static pthread_mutex_t lock_32s = PTHREAD_MUTEX_INITIALIZER;
@@ -648,5 +639,6 @@ xrealloc(void* prev, size_t nn)
   
   return new;
 }
+
 
 
