@@ -1,11 +1,8 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/mman.h>
-#include <pthread.h>
 #include <string.h>
 #include <stdbool.h>
-#include <stdio.h>
-#include <unistd.h>
 #ifdef __linux__
 #include <sys/personality.h>
 #endif
@@ -21,21 +18,18 @@ typedef struct size24_block {
 
 typedef struct size32_block {
 	size_t size;
-	bool active;
 	struct size32_block *next;
 	size_t _unused[2];
 } size32_block;
 
 typedef struct size40_block {
 	size_t size;
-	bool active;
 	struct size40_block *next;
 	size_t _unused[3];
 } size40_block;
 
 typedef struct size64_block {
 	size_t size;
-	bool active;
 	struct size64_block *next;
 	size_t _unused[6];
 } size64_block;
@@ -48,28 +42,24 @@ typedef struct size72_block {
 
 typedef struct size136_block {
 	size_t size;
-	bool active;
 	struct size136_block *next;
 	size_t _unused[15];
 } size136_block;
 
 typedef struct size264_block {
 	size_t size;
-	bool active;
 	struct size264_block *next;
 	size_t _unused[31];
 } size264_block;
 
 typedef struct size520_block {
 	size_t size;
-	bool active;
 	struct size520_block *next;
 	size_t _unused[63];
 } size520_block;
 
 typedef struct size1032_block {
 	size_t size;
-	bool active;
 	struct size1032_block *next;
 	size_t _unused[127];
 } size1032_block;
@@ -112,23 +102,14 @@ void* size24_malloc() {
 	return ptr + 1;
 }
 
-static pthread_mutex_t lock_32s = PTHREAD_MUTEX_INITIALIZER;
-static size32_block* size32s = 0;
+static __thread size32_block* size32s = 0;
 
 void size32_free(void* ptr) {
 	size32_block* point = (size32_block*)(ptr);
 	point->size = 32;
 	
-	if (size32s) {
-		if (size32s->active) {
-			size32_free(ptr);
-		}
-		size32s->active=true;
-		point->next = size32s;
-		size32s = point;
-		size32s->next->active=false;
-	}
-	size32s=point;
+	point->next = size32s;
+	size32s = point;
 }
 
 void size32_setup() {
@@ -144,28 +125,17 @@ void* size32_malloc() {
 	}
 	size_t* ptr = (void*)size32s;
 	size32s = size32s->next;
-	pthread_mutex_unlock(&lock_32s);
-	return ptr + 2;
+	return ptr + 1;
 }
 
-static pthread_mutex_t lock_40s = PTHREAD_MUTEX_INITIALIZER;
-static size40_block* size40s = 0;
+static __thread size40_block* size40s = 0;
 
 void size40_free(void* ptr) {
 	size40_block* point = (size40_block*)(ptr);
 	point->size = 40;
 	
-	if (size40s) {
-		if (size40s->active) {
-			sleep(1);
-			size40_free(ptr);
-		}
-		size40s->active=true;
-		point->next = size40s;
-		size40s = point;
-		size40s->next->active=false;
-	}
-	size40s=point;
+	point->next = size40s;
+	size40s = point;
 }
 
 void size40_setup() {
@@ -181,28 +151,17 @@ void* size40_malloc() {
 	}
 	size_t* ptr = (void*)size40s;
 	size40s = size40s->next;
-	pthread_mutex_unlock(&lock_40s);
-	return ptr + 2;
+	return ptr + 1;
 }
 
-static pthread_mutex_t lock_64s = PTHREAD_MUTEX_INITIALIZER;
-static size64_block* size64s = 0;
+static __thread size64_block* size64s = 0;
 
 void size64_free(void* ptr) {
 	size64_block* point = (size64_block*)(ptr);
 	point->size = 64;
 	
-	if (size64s) {
-		if (size64s->active) {
-			sleep(1);
-			size64_free(ptr);
-		}
-		size64s->active=true;
-		point->next = size64s;
-		size64s = point;
-		size64s->next->active=false;
-	}
-	size64s=point;
+	point->next = size64s;
+	size64s = point;
 }
 
 void size64_setup() {
@@ -218,8 +177,7 @@ void* size64_malloc() {
 	}
 	size_t* ptr = (void*)size64s;
 	size64s = size64s->next;
-	pthread_mutex_unlock(&lock_64s);
-	return ptr + 2;
+	return ptr + 1;
 }
 
 static __thread size72_block* size72s = 0;
@@ -248,24 +206,14 @@ void* size72_malloc() {
 	return ptr + 1;
 }
 
-static pthread_mutex_t lock_136s = PTHREAD_MUTEX_INITIALIZER;
-static size136_block* size136s = 0;
+static __thread size136_block* size136s = 0;
 
 void size136_free(void* ptr) {
 	size136_block* point = (size136_block*)(ptr);
 	point->size = 136;
 	
-	if (size136s) {
-		if (size136s->active) {
-			sleep(1);
-			size136_free(ptr);
-		}
-		size136s->active=true;
-		point->next = size136s;
-		size136s = point;
-		size136s->next->active=false;
-	}
-	size136s=point;
+	point->next = size136s;
+	size136s = point;
 }
 
 void size136_setup() {
@@ -281,28 +229,17 @@ void* size136_malloc() {
 	}
 	size_t* ptr = (void*)size136s;
 	size136s = size136s->next;
-	pthread_mutex_unlock(&lock_136s);
-	return ptr + 2;
+	return ptr + 1;
 }
 
-static pthread_mutex_t lock_264s = PTHREAD_MUTEX_INITIALIZER;
-static size264_block* size264s = 0;
+static __thread size264_block* size264s = 0;
 
 void size264_free(void* ptr) {
 	size264_block* point = (size264_block*)(ptr);
 	point->size = 264;
 	
-	if (size264s) {
-		if (size264s->active) {
-			sleep(1);
-			size264_free(ptr);
-		}
-		size264s->active=true;
-		point->next = size264s;
-		size264s = point;
-		size264s->next->active=false;
-	}
-	size264s=point;
+	point->next = size264s;
+	size264s = point;
 }
 
 void size264_setup() {
@@ -318,28 +255,17 @@ void* size264_malloc() {
 	}
 	size_t* ptr = (void*)size264s;
 	size264s = size264s->next;
-	pthread_mutex_unlock(&lock_264s);
-	return ptr + 2;
+	return ptr + 1;
 }
 
-static pthread_mutex_t lock_520s = PTHREAD_MUTEX_INITIALIZER;
-static size520_block* size520s = 0;
+static __thread size520_block* size520s = 0;
 
 void size520_free(void* ptr) {
 	size520_block* point = (size520_block*)(ptr);
 	point->size = 520;
 	
-	if (size520s) {
-		if (size520s->active) {
-			sleep(1);
-			size520_free(ptr);
-		}
-		size520s->active=true;
-		point->next = size520s;
-		size520s = point;
-		size520s->next->active=false;
-	}
-	size520s=point;
+	point->next = size520s;
+	size520s = point;
 }
 
 void size520_setup() {
@@ -355,28 +281,17 @@ void* size520_malloc() {
 	}
 	size_t* ptr = (void*)size520s;
 	size520s = size520s->next;
-	pthread_mutex_unlock(&lock_520s);
-	return ptr + 2;
+	return ptr + 1;
 }
 
-static pthread_mutex_t lock_1032s = PTHREAD_MUTEX_INITIALIZER;
-static size1032_block* size1032s = 0;
+static __thread size1032_block* size1032s = 0;
 
 void size1032_free(void* ptr) {
 	size1032_block* point = (size1032_block*)(ptr);
 	point->size = 1032;
 	
-	if (size1032s) {
-		if (size1032s->active) {
-			sleep(1);
-			size1032_free(ptr);
-		}
-		size1032s->active=true;
-		point->next = size1032s;
-		size1032s = point;
-		size1032s->next->active=false;
-	}
-	size1032s=point;
+	point->next = size1032s;
+	size1032s = point;
 }
 
 void size1032_setup() {
@@ -392,7 +307,6 @@ void* size1032_malloc() {
 	}
 	size_t* ptr = (void*)size1032s;
 	size1032s = size1032s->next;
-	pthread_mutex_unlock(&lock_1032s);
 	return ptr + 2;
 }
 
@@ -413,34 +327,27 @@ xfree(void* ap)
   	size24_free(ptr);
   	break;
   case 32:
-  	ptr-=1;
   	size32_free(ptr);
   	break;
   case 40:
-  	ptr-=1;
   	size40_free(ptr);
   	break;
   case 64:
-  	ptr-=1;
   	size64_free(ptr);
   	break;
   case 72:
   	size72_free(ptr);
   	break;
   case 136:
-  	ptr-=1;
   	size136_free(ptr);
   	break;
   case 264:
-  	ptr-=1;
   	size264_free(ptr);
   	break;
   case 520:
-  	ptr-=1;
   	size520_free(ptr);
   	break;
   case 1032:
-  	ptr-=1;
   	size1032_free(ptr);
   	break;
   default:
@@ -473,34 +380,27 @@ xmalloc(size_t nbytes)
   	return size24_malloc();
   	break;
   case 32:
-  	pthread_mutex_lock(&lock_32s);
   	return size32_malloc();
   	break;
   case 40:
-  	pthread_mutex_lock(&lock_40s);
   	return size40_malloc();
   	break;
   case 64:
-  	pthread_mutex_lock(&lock_64s);
   	return size64_malloc();
   	break;
   case 72:
   	return size72_malloc();
   	break;
   case 136:
-  	pthread_mutex_lock(&lock_136s);
   	return size136_malloc();
   	break;
   case 264:
-  	pthread_mutex_lock(&lock_264s);
   	return size264_malloc();
   	break;
   case 520:
-  	pthread_mutex_lock(&lock_520s);
   	return size520_malloc();
   	break;
   case 1032:
-  	pthread_mutex_lock(&lock_1032s);
   	return size1032_malloc();
   	break;
   default:
