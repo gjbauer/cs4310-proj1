@@ -64,17 +64,6 @@ typedef struct size1032_block {
 	size_t _unused[127];
 } size1032_block;
 
-/*
- * function cas(p: pointer to int, old: int, new: int) is
- *   if *p ≠ old
- *       return false
- *
- *   *p ← new
- *
- *   return true
- */
- 
-
 static __thread size24_block* size24s = 0;
 
 void size24_free(void* ptr) {
@@ -86,8 +75,8 @@ void size24_free(void* ptr) {
 }
 
 void size24_setup() {
-	size24_block* page = mmap(0, 113 * 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 14464; ii++) {
+	size24_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 19418; ii++) {
 		size24_free(&(page[ii]));
 	}
 }
@@ -113,8 +102,8 @@ void size32_free(void* ptr) {
 }
 
 void size32_setup() {
-	size32_block* page = mmap(0, 113 * 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 11571; ii++) {
+	size32_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 14563; ii++) {
 		size32_free(&(page[ii]));
 	}
 }
@@ -139,8 +128,8 @@ void size40_free(void* ptr) {
 }
 
 void size40_setup() {
-	size40_block* page = mmap(0, 113 * 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 9642; ii++) {
+	size40_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 11650; ii++) {
 		size40_free(&(page[ii]));
 	}
 }
@@ -165,8 +154,8 @@ void size64_free(void* ptr) {
 }
 
 void size64_setup() {
-	size64_block* page = mmap(0, 113 * 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 6428; ii++) {
+	size64_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 7281; ii++) {
 		size64_free(&(page[ii]));
 	}
 }
@@ -191,8 +180,8 @@ void size72_free(void* ptr) {
 }
 
 void size72_setup() {
-	size72_block* page = mmap(0, 113 * 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 5785; ii++) {
+	size72_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 6472; ii++) {
 		size72_free(&(page[ii]));
 	}
 }
@@ -217,8 +206,8 @@ void size136_free(void* ptr) {
 }
 
 void size136_setup() {
-	size136_block* page = mmap(0, 113 * 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 3214; ii++) {
+	size136_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 3426; ii++) {
 		size136_free(&(page[ii]));
 	}
 }
@@ -243,8 +232,8 @@ void size264_free(void* ptr) {
 }
 
 void size264_setup() {
-	size264_block* page = mmap(0, 113 * 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 1701; ii++) {
+	size264_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 1765; ii++) {
 		size264_free(&(page[ii]));
 	}
 }
@@ -269,8 +258,8 @@ void size520_free(void* ptr) {
 }
 
 void size520_setup() {
-	size520_block* page = mmap(0, 113 * 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 876; ii++) {
+	size520_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 896; ii++) {
 		size520_free(&(page[ii]));
 	}
 }
@@ -295,8 +284,8 @@ void size1032_free(void* ptr) {
 }
 
 void size1032_setup() {
-	size1032_block* page = mmap(0, 113 * 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 445; ii++) {
+	size1032_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 451; ii++) {
 		size1032_free(&(page[ii]));
 	}
 }
@@ -307,7 +296,7 @@ void* size1032_malloc() {
 	}
 	size_t* ptr = (void*)size1032s;
 	size1032s = size1032s->next;
-	return ptr + 2;
+	return ptr + 1;
 }
 
 static
