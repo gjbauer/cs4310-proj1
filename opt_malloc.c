@@ -266,13 +266,12 @@ void size24_free(void* ptr) {
 	else {
 		block->next = size24s;
 		size24s = block;
-		walk24s(size24s)->next=NULL;
 	}
 }
 
 void size24_setup() {
-	size24_block* page = mmap(0, 1*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 17; ii++) {
+	size24_block* page = mmap(0, 10*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 170; ii++) {
 		size24_free(&(page[ii]));
 	}
 }
