@@ -142,7 +142,6 @@ long free_list_length() {
     for (int i=0;array[i]; i++) {
         length+=list_length(array[i]);
     }
-    length+=size_list_length((snode*)size24s);
     stats.free_length += length;
     return length;
 }
@@ -197,32 +196,28 @@ big_free(void *ptr) {
 
 void*
 pmalloc_helper(size_t size) {
-	if (size<=4000) {
-		static int k = -1;
-		static int cap = 0;
-		if (k == -1) {
-			k = morecore();
-			cap = PAGE_SIZE;
-		}
-	
-		int i=0;
-		for(; array[i] && i<=k;i++) {
-			if(cap>size+sizeof(node*)) {
-				size_t *ptr = (size_t*)array[i];
-				push(i, size);
-				*ptr = k;
-				ptr = ptr + 1;
-				*ptr = size;
-				cap-=size;
-				stats.chunks_allocated+=1;
-				return (size_t*)ptr + 1;
-			}
-		}
-		//array[k]->next = 0;
+	static int k = -1;
+	static int cap = 0;
+	if (k == -1) {
 		k = morecore();
-		return pmalloc_helper(size);
+		cap = PAGE_SIZE;
 	}
-	else return big_malloc(size);
+	
+	int i=0;
+	for(; array[i] && i<=k;i++) {
+		if(cap>size+sizeof(node*)) {
+			size_t *ptr = (size_t*)array[i];
+			push(i, size);
+			*ptr = k;
+			ptr = ptr + 1;
+			*ptr = size;
+			cap-=size;
+			stats.chunks_allocated+=1;
+			return (size_t*)ptr + 1;
+		}
+	}
+	k = morecore();
+	return pmalloc_helper(size);
 }
 
 void
@@ -237,23 +232,10 @@ pfree_helper(void *ptr) {
 
 /* - Size Specific Allocs and Frees - */
 
-bool first24s=true;
-
-size24_block*
-walk24s(size24_block *n) {
-	size24_block *p=n;
-	size24_block* prev=NULL;
-	while (p) {
-		prev=p;
-		p=p->next;
-	}
-	return prev;
-}
-
 void size24_free(void* ptr) {
 	static int count = 0;
 	size24_block* block = (size24_block*)(ptr);
-	block->size = sethigherbits(setlowerbits(0, 24), count);
+	block->size = sethigherbits(setlowerbits(0, 24), count);	// TODO: Get this to read and write values here accordingly so we can always put our blocks where they need to go...
 	count++;
 	printf("count : %ld\n", tolowerbits(block->size));
 	
@@ -261,7 +243,8 @@ void size24_free(void* ptr) {
 	
 	size24_block *curr = size24s;
 	size24_block *prev = NULL;
-	while ((void*)block>(void*)curr&&curr!=0) {	// Kepp the blocks sorted by where they appear in memory ;)
+	while (curr) {	// Kepp the blocks sorted by where they appear in memory ;)
+		if (tolowerbits(block->size)<=tolowerbits(curr->size)) break;
 		prev = curr;
 		curr = curr->next;
 	}
@@ -277,8 +260,7 @@ void size24_free(void* ptr) {
 
 void size24_setup() {
 	size24_block* page = mmap(0, 10*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 170; ii++) {
-		memset(&(page[ii]), 0, 40960/170);
+	for (int ii = 0; ii < 1700; ii++) {
 		size24_free(&(page[ii]));
 	}
 }
@@ -289,6 +271,7 @@ void* size24_malloc() {
 	}
 	
 	size_t* ptr = (void*)size24s;
+	printf("mallocing pos : %ld\n", tolowerbits(size24s->size));
 	size24s = size24s->next;
 	return ptr + 1;
 }
@@ -521,7 +504,7 @@ xfree(void* ap)
 {
   size_t *ptr = (size_t*)ap - 1;
   //printf("xfree(%ld)\n", *ptr);
-  switch (*ptr) {
+  switch (lowerbits(*ptr)) {
   case 24:
   	size24_free(ptr);
   	break;
@@ -609,7 +592,6 @@ xmalloc(size_t nbytes)
   	break;
   }
 }
-
 
 void*
 xrealloc(void* prev, size_t nn)
