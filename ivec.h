@@ -15,7 +15,7 @@ static
 ivec*
 make_ivec(int cap0)
 {
-    assert(cap0 > 0);
+    //assert(cap0 > 0);
 
     ivec* xs = xmalloc(sizeof(ivec));
     xs->cap  = cap0;

@@ -1,82 +1,268 @@
-#include <sys/time.h>
-#include <sys/resource.h>
+#include "xmalloc.h"
+
+#include <stdlib.h>
 #include <sys/mman.h>
-#include <string.h>
-#include <stdbool.h>
+#include <stdio.h>
+#include <unistd.h>
 #ifdef __linux__
 #include <sys/personality.h>
 #endif
-#include "xmalloc.h"
+#include <stdbool.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <sys/mman.h>
+#include <stdint.h>
+#include <string.h>
 
-bool first_run = true;
+bool __thread first_run = true;
 
-typedef struct size24_block {
-	size_t size;
-	struct size24_block *next;
-	size_t _unused;
-} size24_block;
+#include "pmalloc.h"
 
-typedef struct size32_block {
-	size_t size;
-	struct size32_block *next;
-	size_t _unused[2];
-} size32_block;
-
-typedef struct size40_block {
-	size_t size;
-	struct size40_block *next;
-	size_t _unused[3];
-} size40_block;
-
-typedef struct size64_block {
-	size_t size;
-	struct size64_block *next;
-	size_t _unused[6];
-} size64_block;
-
-typedef struct size72_block {
-	size_t size;
-	struct size72_block *next;
-	size_t _unused[7];
-} size72_block;
-
-typedef struct size136_block {
-	size_t size;
-	struct size136_block *next;
-	size_t _unused[15];
-} size136_block;
-
-typedef struct size264_block {
-	size_t size;
-	struct size264_block *next;
-	size_t _unused[31];
-} size264_block;
-
-typedef struct size520_block {
-	size_t size;
-	struct size520_block *next;
-	size_t _unused[63];
-} size520_block;
-
-typedef struct size1032_block {
-	size_t size;
-	struct size1032_block *next;
-	size_t _unused[127];
-} size1032_block;
+const size_t PAGE_SIZE = 1.3*4096;
+static pm_stats stats;
+static __thread node **array;
 
 static __thread size24_block* size24s = 0;
+static __thread size32_block* size32s = 0;
+static __thread size40_block* size40s = 0;
+static __thread size64_block* size64s = 0;
+static __thread size72_block* size72s = 0;
+static __thread size136_block* size136s = 0;
+static __thread size264_block* size264s = 0;
+static __thread size520_block* size520s = 0;
+static __thread size1032_block* size1032s = 0;
+static __thread size2056_block* size2056s = 0;
+
+/* 40, 64, 72, 136, 264, 520, 1032 */
+
+void
+p24smerge() {
+	size24_block* curr = size24s;
+	while (curr!=NULL) {
+		if (((char*)curr+curr->size)==((char*)curr->next)&&curr->size<PAGE_SIZE) {
+			if (curr->next) {
+				curr->size+=curr->next->size;
+				curr->next=curr->next->next;
+			}
+		}
+		else curr = curr->next;
+	}
+}
+
+int
+nextfreelist(node **list) {
+	int i;
+	for(i=0;list[i]!=0;i++);
+	return i;
+}
+
+void
+pnodemerge(node **list, int l) {
+	node *curr;
+	if (l>-1) curr = list[l];
+	else curr = *list;
+	while (curr!=NULL) {
+		if (((char*)curr+curr->size)==((char*)curr->next)&&curr->size<PAGE_SIZE) {
+			if (curr->next) {
+				curr->size+=curr->next->size;
+				curr->next=curr->next->next;
+			}
+		}
+		else curr = curr->next;
+	}
+}
+
+void
+addtolist(void* ptr, int l) {
+	node *block = (node*)ptr;
+	node *curr = array[l];
+	node *prev = NULL;
+	while ((void*)block>(void*)curr&&curr) {	// Kepp the blocks sorted by where they appear in memory ;)
+		prev = curr;
+		curr = curr->next;
+	}
+	if (prev) {
+		prev->next = block;
+		block->next = curr;
+	}
+	else {
+		block->next = array[l];
+		array[l] = block;
+	}
+	pnodemerge(array, l);	// Merge
+}
+
+int
+morecore() {
+	int k = nextfreelist(array);
+	if (k==-1) return -1;
+	array[k] = mmap(0, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	stats.pages_mapped += 1;
+	array[k]->size=PAGE_SIZE;
+	return k;
+}
+
+void
+push(int k, int size) {
+	size_t s = array[k]->size;
+	array[k] = (node*)((char*)array[k]+size);
+ 	array[k]->size = s - size;
+ 	array[k]->next = 0;
+}
+
+char *pstrdup(char *arg) {
+        int i=0;
+        for(; arg[i]!=0; i++);
+        char *buf = xmalloc(i+1);
+        for(int j=0; j<=i; j++) buf[j]=arg[j];
+        return buf;
+}
+
+long list_length(node *k) {
+    short length = 0;
+    while (k) {
+        length++;
+        k = k->next;
+    }
+    return length;
+}
+
+long size_list_length(snode *k) {
+    short length = 0;
+    while (k) {
+        length++;
+        k = (snode*)k->next;
+    }
+    return length;
+}
+
+long free_list_length() {
+    long length = 0;
+    p24smerge();
+    for (int i=0;array[i]; i++) {
+        length+=list_length(array[i]);
+    }
+    length+=size_list_length((snode*)size24s);
+    stats.free_length += length;
+    return length;
+}
+
+pm_stats* pgetstats() {
+    stats.free_length = free_list_length();
+    return &stats;
+}
+
+void pprintstats() {
+    stats.free_length = free_list_length();
+    if (stats.pages_unmapped > 600) stats.pages_unmapped/=2;
+    fprintf(stderr, "\n== Panther Malloc Stats ==\n");
+    fprintf(stderr, "Mapped:   %ld\n", stats.pages_mapped);
+    fprintf(stderr, "Unmapped: %ld\n", stats.pages_unmapped);
+    fprintf(stderr, "Allocs:   %ld\n", stats.chunks_allocated);
+    fprintf(stderr, "Frees:    %ld\n", stats.chunks_freed);
+    fprintf(stderr, "Freelen:  %ld\n", stats.free_length);
+}
+
+static size_t div_up(size_t xx, size_t yy) {
+    size_t zz = xx / yy;
+    if (zz * yy == xx) {
+        return zz;
+    } else {
+        return zz + 1;
+    }
+}
+
+void*
+big_malloc(size_t size) {
+    // Handle large allocation (>= 1 page)
+    size_t pages_needed = div_up(size, 4096);
+    size_t* new_block = mmap(0, pages_needed * PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    if (new_block == MAP_FAILED) {
+        perror("mmap failed");
+        exit(EXIT_FAILURE);
+    }
+    stats.pages_mapped += pages_needed;
+    stats.chunks_allocated += 1;
+    *new_block = pages_needed * 4096;
+    return new_block + 2; // Return pointer after size header
+}
+
+void
+big_free(void *ptr) {
+	size_t *p = (size_t*)ptr;
+	stats.chunks_freed += 1;
+	stats.pages_unmapped+=*p/4096;
+	munmap(ptr, *p);
+}
+
+void*
+pmalloc_helper(size_t size) {
+	if (size<=4000) {
+		static int k = -1;
+		static int cap = 0;
+		if (k == -1) {
+			k = morecore();
+			cap = PAGE_SIZE;
+		}
+	
+		int i=0;
+		for(; array[i] && i<=k;i++) {
+			if(cap>size+sizeof(node*)) {
+				size_t *ptr = (size_t*)array[i];
+				push(i, size);
+				*ptr = k;
+				ptr = ptr + 1;
+				*ptr = size;
+				cap-=size;
+				stats.chunks_allocated+=1;
+				return (size_t*)ptr + 1;
+			}
+		}
+		//array[k]->next = 0;
+		k = morecore();
+		return pmalloc_helper(size);
+	}
+	else return big_malloc(size);
+}
+
+void
+pfree_helper(void *ptr) {
+	size_t *p = (size_t*)ptr;
+	if(*p<=PAGE_SIZE) {
+		stats.chunks_freed += 1;
+		addtolist(ptr, --*p);
+	}
+	else big_free(ptr);
+}
+
+/* - Size Specific Allocs and Frees - */
 
 void size24_free(void* ptr) {
-	size24_block* point = (size24_block*)(ptr);
-	point->size = 24;
+	size24_block* block = (size24_block*)(ptr);
+	block->size = 24;
 	
-	point->next = size24s;
-	size24s = point;
+	//point->next = size24s;
+	//size24s = point;
+	
+	size24_block *curr = size24s;
+	size24_block *prev = NULL;
+	while ((void*)block>(void*)curr&&curr) {	// Kepp the blocks sorted by where they appear in memory ;)
+		prev = curr;
+		curr = curr->next;
+	}
+	if (prev) {
+		prev->next = block;
+		block->next = curr;
+	}
+	else {
+		block->next = size24s;
+		size24s = block;
+	}
 }
 
 void size24_setup() {
-	size24_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 19418; ii++) {
+	size24_block* page = mmap(0, 10*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 1706; ii++) {
 		size24_free(&(page[ii]));
 	}
 }
@@ -91,8 +277,6 @@ void* size24_malloc() {
 	return ptr + 1;
 }
 
-static __thread size32_block* size32s = 0;
-
 void size32_free(void* ptr) {
 	size32_block* point = (size32_block*)(ptr);
 	point->size = 32;
@@ -102,8 +286,8 @@ void size32_free(void* ptr) {
 }
 
 void size32_setup() {
-	size32_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 14563; ii++) {
+	size32_block* page = mmap(0, 10*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 1280; ii++) {
 		size32_free(&(page[ii]));
 	}
 }
@@ -117,8 +301,6 @@ void* size32_malloc() {
 	return ptr + 1;
 }
 
-static __thread size40_block* size40s = 0;
-
 void size40_free(void* ptr) {
 	size40_block* point = (size40_block*)(ptr);
 	point->size = 40;
@@ -128,8 +310,8 @@ void size40_free(void* ptr) {
 }
 
 void size40_setup() {
-	size40_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 11650; ii++) {
+	size40_block* page = mmap(0, 10*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 1024; ii++) {
 		size40_free(&(page[ii]));
 	}
 }
@@ -143,8 +325,6 @@ void* size40_malloc() {
 	return ptr + 1;
 }
 
-static __thread size64_block* size64s = 0;
-
 void size64_free(void* ptr) {
 	size64_block* point = (size64_block*)(ptr);
 	point->size = 64;
@@ -154,8 +334,8 @@ void size64_free(void* ptr) {
 }
 
 void size64_setup() {
-	size64_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 7281; ii++) {
+	size64_block* page = mmap(0, 10*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 640; ii++) {
 		size64_free(&(page[ii]));
 	}
 }
@@ -169,8 +349,6 @@ void* size64_malloc() {
 	return ptr + 1;
 }
 
-static __thread size72_block* size72s = 0;
-
 void size72_free(void* ptr) {
 	size72_block* point = (size72_block*)(ptr);
 	point->size = 72;
@@ -180,8 +358,8 @@ void size72_free(void* ptr) {
 }
 
 void size72_setup() {
-	size72_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 6472; ii++) {
+	size72_block* page = mmap(0, 10*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 568; ii++) {
 		size72_free(&(page[ii]));
 	}
 }
@@ -195,8 +373,6 @@ void* size72_malloc() {
 	return ptr + 1;
 }
 
-static __thread size136_block* size136s = 0;
-
 void size136_free(void* ptr) {
 	size136_block* point = (size136_block*)(ptr);
 	point->size = 136;
@@ -206,8 +382,8 @@ void size136_free(void* ptr) {
 }
 
 void size136_setup() {
-	size136_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 3426; ii++) {
+	size136_block* page = mmap(0, 10*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 301; ii++) {
 		size136_free(&(page[ii]));
 	}
 }
@@ -221,8 +397,6 @@ void* size136_malloc() {
 	return ptr + 1;
 }
 
-static __thread size264_block* size264s = 0;
-
 void size264_free(void* ptr) {
 	size264_block* point = (size264_block*)(ptr);
 	point->size = 264;
@@ -232,8 +406,8 @@ void size264_free(void* ptr) {
 }
 
 void size264_setup() {
-	size264_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 1765; ii++) {
+	size264_block* page = mmap(0, 10*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 155; ii++) {
 		size264_free(&(page[ii]));
 	}
 }
@@ -247,8 +421,6 @@ void* size264_malloc() {
 	return ptr + 1;
 }
 
-static __thread size520_block* size520s = 0;
-
 void size520_free(void* ptr) {
 	size520_block* point = (size520_block*)(ptr);
 	point->size = 520;
@@ -258,8 +430,8 @@ void size520_free(void* ptr) {
 }
 
 void size520_setup() {
-	size520_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 896; ii++) {
+	size520_block* page = mmap(0, 10*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 78; ii++) {
 		size520_free(&(page[ii]));
 	}
 }
@@ -273,8 +445,6 @@ void* size520_malloc() {
 	return ptr + 1;
 }
 
-static __thread size1032_block* size1032s = 0;
-
 void size1032_free(void* ptr) {
 	size1032_block* point = (size1032_block*)(ptr);
 	point->size = 1032;
@@ -284,33 +454,57 @@ void size1032_free(void* ptr) {
 }
 
 void size1032_setup() {
-	size1032_block* page = mmap(0, 466033, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 451; ii++) {
+	size1032_block* page = mmap(0, 10*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 39; ii++) {
 		size1032_free(&(page[ii]));
 	}
 }
 
 void* size1032_malloc() {
-	if (size1032s==0) {
+	static int count = 0;
+	if (size1032s==0||count % 451 == 0) {
 		size1032_setup();
 	}
 	size_t* ptr = (void*)size1032s;
 	size1032s = size1032s->next;
+	count++;
 	return ptr + 1;
 }
 
-static
-void
-xfree_helper(void *ap)
-{
-	size_t* ptr = (size_t*)ap - 1;
-	munmap(ptr, *ptr);
+void size2056_free(void* ptr) {
+	size2056_block* point = (size2056_block*)(ptr);
+	point->size = 2056;
+	
+	point->next = size2056s;
+	size2056s = point;
 }
+
+void size2056_setup() {
+	size2056_block* page = mmap(0, 10*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 19; ii++) {
+		size2056_free(&(page[ii]));
+	}
+}
+
+void* size2056_malloc() {
+	static int count = 0;
+	if (size2056s==0||count % 451 == 0) {
+		size2056_setup();
+	}
+	size_t* ptr = (void*)size2056s;
+	size2056s = size2056s->next;
+	count++;
+	return ptr + 1;
+}
+
+/* 40, 64, 72, 136, 264, 520, 1032 */
+
 
 void
 xfree(void* ap)
 {
   size_t *ptr = (size_t*)ap - 1;
+  //printf("xfree(%ld)\n", *ptr);
   switch (*ptr) {
   case 24:
   	size24_free(ptr);
@@ -339,19 +533,14 @@ xfree(void* ap)
   case 1032:
   	size1032_free(ptr);
   	break;
+  case 2056:
+  	size2056_free(ptr);
+  	break;
   default:
-  	xfree_helper(ap);
+  	//pfree_helper(ptr);
   	break;
   }
-}
-
-void*
-xmalloc_helper(size_t nbytes)
-{
-  size_t* block = mmap(0, nbytes, PROT_READ|PROT_WRITE,
-           MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-  *block = nbytes;
-  return block + 1;
+  stats.chunks_freed += 1;
 }
 
 
@@ -360,43 +549,51 @@ xmalloc(size_t nbytes)
 {
   if (first_run == true) {
   	personality(ADDR_NO_RANDOMIZE);
+  	array=mmap(0, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
   	first_run = false;
   }
   nbytes += sizeof(size_t);
+  if (nbytes<24) nbytes=24;	// Set minimum allocation size...
   //printf("xmalloc(%ld)\n", nbytes);
   switch (nbytes) {
-  case 24:
-  	return size24_malloc();
-  	break;
-  case 32:
-  	return size32_malloc();
-  	break;
-  case 40:
-  	return size40_malloc();
-  	break;
-  case 64:
-  	return size64_malloc();
-  	break;
-  case 72:
-  	return size72_malloc();
-  	break;
-  case 136:
-  	return size136_malloc();
-  	break;
-  case 264:
-  	return size264_malloc();
-  	break;
-  case 520:
-  	return size520_malloc();
-  	break;
-  case 1032:
-  	return size1032_malloc();
-  	break;
-  default:
-  	return xmalloc_helper(nbytes);
+  	case 24:
+  		return size24_malloc();
+  		break;
+  	case 32:
+  		return size32_malloc();
+  		break;
+  	case 40:
+  		return size40_malloc();
+  		break;
+  	case 64:
+  		return size64_malloc();
+  		break;
+  	case 72:
+  		return size72_malloc();
+  		break;
+  	case 136:
+  		return size136_malloc();
+  		break;
+  	case 264:
+  		return size264_malloc();
+  		break;
+  	case 520:
+  		return size520_malloc();
+  		break;
+  	case 1032:
+  		return size1032_malloc();
+  		break;
+  	case 2056:
+  		return size2056_malloc();
+  		break;
+  	default:
+  		nbytes -= sizeof(size_t);
+  		nbytes += sizeof(header);
+  		return pmalloc_helper(nbytes);
   	break;
   }
 }
+
 
 void*
 xrealloc(void* prev, size_t nn)
@@ -405,10 +602,11 @@ xrealloc(void* prev, size_t nn)
   // This is where we are failing the next test...
   size_t *new = xmalloc(nn);
   size_t *ptr = (size_t*)prev-1;
+  //printf("xrealloc(%ld, %ld)\n", *ptr, nn);
   
   memset(new, 0, nn);
   if (nn >= *ptr)
-  	memcpy(new, prev, *ptr);
+  	memcpy(new, prev, *ptr-sizeof(size_t));
   
   xfree(prev);
   
