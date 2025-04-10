@@ -237,12 +237,20 @@ pfree_helper(void *ptr) {
 
 /* - Size Specific Allocs and Frees - */
 
+size24_block*
+walk24s(size24_block *n) {
+	size24_block *p=n;
+	size24_block* prev=NULL;
+	while (p) {
+		prev=p;
+		p=p->next;
+	}
+	return prev;
+}
+
 void size24_free(void* ptr) {
 	size24_block* block = (size24_block*)(ptr);
 	block->size = 24;
-	
-	//point->next = size24s;
-	//size24s = point;
 	
 	size24_block *curr = size24s;
 	size24_block *prev = NULL;
@@ -253,16 +261,18 @@ void size24_free(void* ptr) {
 	if (prev) {
 		prev->next = block;
 		block->next = curr;
+		if (curr) curr->next=NULL;
 	}
 	else {
 		block->next = size24s;
 		size24s = block;
+		walk24s(size24s)->next=NULL;
 	}
 }
 
 void size24_setup() {
-	size24_block* page = mmap(0, 10*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-	for (int ii = 0; ii < 1706; ii++) {
+	size24_block* page = mmap(0, 1*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+	for (int ii = 0; ii < 17; ii++) {
 		size24_free(&(page[ii]));
 	}
 }
