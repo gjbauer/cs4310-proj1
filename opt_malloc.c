@@ -237,6 +237,8 @@ pfree_helper(void *ptr) {
 
 /* - Size Specific Allocs and Frees - */
 
+bool first24s=true;
+
 size24_block*
 walk24s(size24_block *n) {
 	size24_block *p=n;
@@ -249,19 +251,23 @@ walk24s(size24_block *n) {
 }
 
 void size24_free(void* ptr) {
+	static int count = 0;
 	size24_block* block = (size24_block*)(ptr);
-	block->size = 24;
+	block->size = sethigherbits(setlowerbits(0, 24), count);
+	count++;
+	printf("count : %ld\n", tolowerbits(block->size));
+	
+	if (!size24s) {size24s=block; return;}
 	
 	size24_block *curr = size24s;
 	size24_block *prev = NULL;
-	while ((void*)block>(void*)curr&&curr) {	// Kepp the blocks sorted by where they appear in memory ;)
+	while ((void*)block>(void*)curr&&curr!=0) {	// Kepp the blocks sorted by where they appear in memory ;)
 		prev = curr;
 		curr = curr->next;
 	}
 	if (prev) {
 		prev->next = block;
-		block->next = curr;
-		if (curr) curr->next=NULL;
+		if (prev!=curr) block->next = curr;
 	}
 	else {
 		block->next = size24s;
@@ -272,6 +278,7 @@ void size24_free(void* ptr) {
 void size24_setup() {
 	size24_block* page = mmap(0, 10*4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
 	for (int ii = 0; ii < 170; ii++) {
+		memset(&(page[ii]), 0, 40960/170);
 		size24_free(&(page[ii]));
 	}
 }
