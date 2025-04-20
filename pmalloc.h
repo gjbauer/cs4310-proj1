@@ -18,7 +18,9 @@ typedef struct node {
 	struct node *next;
 } node;
 
-typedef struct snode {
+typedef struct snode {	// Why not treat our size nodes like the other ones and store the position in our "k" variable?
+// We will just have to account for that in our size. We can also create footers, and have one for our regular nodes, which stores the page number
+// And our footers for the fixed sized blocks can store their relative positions...
 	size_t size;
 	struct snode *next;
 } snode;
