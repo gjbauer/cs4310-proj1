@@ -14,14 +14,12 @@
 #include <stdint.h>
 #include <string.h>
 
-bool __thread first_run = true;
-
 #include "pmalloc.h"
 
 const size_t PAGE_SIZE = 1.3*4096;
+bool __thread first_run = true;
 static pm_stats stats;
 static __thread node **array;
-
 static __thread size24_block* size24s = 0;
 static __thread size32_block* size32s = 0;
 static __thread size40_block* size40s = 0;
@@ -32,22 +30,6 @@ static __thread size264_block* size264s = 0;
 static __thread size520_block* size520s = 0;
 static __thread size1032_block* size1032s = 0;
 static __thread size2056_block* size2056s = 0;
-
-/* 40, 64, 72, 136, 264, 520, 1032 */
-
-void
-p24smerge() {
-	size24_block* curr = size24s;
-	while (curr!=NULL) {
-		if (((char*)curr+curr->size)==((char*)curr->next)&&curr->size<PAGE_SIZE) {
-			if (curr->next) {
-				curr->size+=curr->next->size;
-				curr->next=curr->next->next;
-			}
-		}
-		else curr = curr->next;
-	}
-}
 
 int
 nextfreelist(node **list) {
@@ -111,69 +93,69 @@ push(int k, int size) {
 }
 
 char *pstrdup(char *arg) {
-        int i=0;
-        for(; arg[i]!=0; i++);
-        char *buf = xmalloc(i+1);
-        for(int j=0; j<=i; j++) buf[j]=arg[j];
-        return buf;
+		int i=0;
+		for(; arg[i]!=0; i++);
+		char *buf = xmalloc(i+1);
+		for(int j=0; j<=i; j++) buf[j]=arg[j];
+		return buf;
 }
 
 long list_length(node *k) {
-    short length = 0;
-    while (k) {
-        length++;
-        k = k->next;
-    }
-    return length;
+	short length = 0;
+	while (k) {
+		length++;
+		k = k->next;
+	}
+	return length;
 }
 long free_list_length() {
-    long length = 0;
-    p24smerge();
-    for (int i=0;array[i]; i++) {
-        length+=list_length(array[i]);
-    }
-    stats.free_length += length;
-    return length;
+	long length = 0;
+	p24smerge();
+	for (int i=0;array[i]; i++) {
+		length+=list_length(array[i]);
+	}
+	stats.free_length += length;
+	return length;
 }
 
 pm_stats* pgetstats() {
-    stats.free_length = free_list_length();
-    return &stats;
+	stats.free_length = free_list_length();
+	return &stats;
 }
 
 void pprintstats() {
-    stats.free_length = free_list_length();
-    if (stats.pages_unmapped > 600) stats.pages_unmapped/=2;
-    fprintf(stderr, "\n== Panther Malloc Stats ==\n");
-    fprintf(stderr, "Mapped:   %ld\n", stats.pages_mapped);
-    fprintf(stderr, "Unmapped: %ld\n", stats.pages_unmapped);
-    fprintf(stderr, "Allocs:   %ld\n", stats.chunks_allocated);
-    fprintf(stderr, "Frees:    %ld\n", stats.chunks_freed);
-    fprintf(stderr, "Freelen:  %ld\n", stats.free_length);
+	stats.free_length = free_list_length();
+	if (stats.pages_unmapped > 600) stats.pages_unmapped/=2;
+	fprintf(stderr, "\n== Panther Malloc Stats ==\n");
+	fprintf(stderr, "Mapped:  %ld\n", stats.pages_mapped);
+	fprintf(stderr, "Unmapped:  %ld\n", stats.pages_unmapped);
+	fprintf(stderr, "Allocs:  %ld\n", stats.chunks_allocated);
+	fprintf(stderr, "Frees:  %ld\n", stats.chunks_freed);
+	fprintf(stderr, "Freelen:  %ld\n", stats.free_length);
 }
 
 static size_t div_up(size_t xx, size_t yy) {
-    size_t zz = xx / yy;
-    if (zz * yy == xx) {
-        return zz;
-    } else {
-        return zz + 1;
-    }
+	size_t zz = xx / yy;
+	if (zz * yy == xx) {
+		return zz;
+	} else {
+		return zz + 1;
+	}
 }
 
 void*
 big_malloc(size_t size) {
-    // Handle large allocation (>= 1 page)
-    size_t pages_needed = div_up(size, 4096);
-    size_t* new_block = mmap(0, pages_needed * PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-    if (new_block == MAP_FAILED) {
-        perror("mmap failed");
-        exit(EXIT_FAILURE);
-    }
-    stats.pages_mapped += pages_needed;
-    stats.chunks_allocated += 1;
-    *new_block = pages_needed * 4096;
-    return new_block + 2; // Return pointer after size header
+	// Handle large allocation (>= 1 page)
+	size_t pages_needed = div_up(size, 4096);
+	size_t* new_block = mmap(0, pages_needed * PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+	if (new_block == MAP_FAILED) {
+		perror("mmap failed");
+		exit(EXIT_FAILURE);
+	}
+	stats.pages_mapped += pages_needed;
+	stats.chunks_allocated += 1;
+	*new_block = pages_needed * 4096;
+	return new_block + 2; // Return pointer after size header
 }
 
 void
@@ -464,117 +446,114 @@ void* size2056_malloc() {
 	return ptr + 1;
 }
 
-/* 40, 64, 72, 136, 264, 520, 1032 */
-
-
 void
 xfree(void* ap)
 {
-  size_t *ptr = (size_t*)ap - 1;
-  //printf("xfree(%ld)\n", *ptr);
-  switch (lowerbits(*ptr)) {
-  case 24:
-  	size24_free(ptr);
-  	break;
-  case 32:
-  	size32_free(ptr);
-  	break;
-  case 40:
-  	size40_free(ptr);
-  	break;
-  case 64:
-  	size64_free(ptr);
-  	break;
-  case 72:
-  	size72_free(ptr);
-  	break;
-  case 136:
-  	size136_free(ptr);
-  	break;
-  case 264:
-  	size264_free(ptr);
-  	break;
-  case 520:
-  	size520_free(ptr);
-  	break;
-  case 1032:
-  	size1032_free(ptr);
-  	break;
-  case 2056:
-  	size2056_free(ptr);
-  	break;
-  default:
-  	pfree_helper(ptr);
-  	break;
-  }
-  stats.chunks_freed += 1;
+	size_t *ptr = (size_t*)ap - 1;
+	//printf("xfree(%ld)\n", *ptr);
+	switch (lowerbits(*ptr)) {
+	case 24:
+		size24_free(ptr);
+		break;
+	case 32:
+		size32_free(ptr);
+		break;
+	case 40:
+		size40_free(ptr);
+		break;
+	case 64:
+		size64_free(ptr);
+		break;
+	case 72:
+		size72_free(ptr);
+		break;
+	case 136:
+		size136_free(ptr);
+		break;
+	case 264:
+		size264_free(ptr);
+		break;
+	case 520:
+		size520_free(ptr);
+		break;
+	case 1032:
+		size1032_free(ptr);
+		break;
+	case 2056:
+		size2056_free(ptr);
+		break;
+	default:
+		pfree_helper(ptr);
+		break;
+	}
+	stats.chunks_freed += 1;
 }
 
 
 void*
 xmalloc(size_t nbytes)
 {
-  if (first_run == true) {
-  	personality(ADDR_NO_RANDOMIZE);
-  	array=mmap(0, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
-  	first_run = false;
-  }
-  nbytes += sizeof(size_t);
-  if (nbytes<24) nbytes=24;	// Set minimum allocation size...
-  //printf("xmalloc(%ld)\n", nbytes);
-  switch (nbytes) {
-  	case 24:
-  		return size24_malloc();
-  		break;
-  	case 32:
-  		return size32_malloc();
-  		break;
-  	case 40:
-  		return size40_malloc();
-  		break;
-  	case 64:
-  		return size64_malloc();
-  		break;
-  	case 72:
-  		return size72_malloc();
-  		break;
-  	case 136:
-  		return size136_malloc();
-  		break;
-  	case 264:
-  		return size264_malloc();
-  		break;
-  	case 520:
-  		return size520_malloc();
-  		break;
-  	case 1032:
-  		return size1032_malloc();
-  		break;
-  	case 2056:
-  		return size2056_malloc();
-  		break;
-  	default:
-  		return pmalloc_helper(nbytes);
-  		break;
-  }
+	if (first_run == true) {
+		personality(ADDR_NO_RANDOMIZE);
+		array=mmap(0, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0);
+		first_run = false;
+	}
+	nbytes += sizeof(size_t);
+	if (nbytes<24) nbytes=24;	// Set minimum allocation size...
+	//printf("xmalloc(%ld)\n", nbytes);
+	switch (nbytes) {
+		case 24:
+			return size24_malloc();
+			break;
+		case 32:
+			return size32_malloc();
+			break;
+		case 40:
+			return size40_malloc();
+			break;
+		case 64:
+			return size64_malloc();
+			break;
+		case 72:
+			return size72_malloc();
+			break;
+		case 136:
+			return size136_malloc();
+			break;
+		case 264:
+			return size264_malloc();
+			break;
+		case 520:
+			return size520_malloc();
+			break;
+		case 1032:
+			return size1032_malloc();
+			break;
+		case 2056:
+			return size2056_malloc();
+			break;
+		default:
+			return pmalloc_helper(nbytes);
+			break;
+	}
 }
 
 void*
 xrealloc(void* prev, size_t nn)
 {
-  // TODO: implement a working realloc
-  // This is where we are failing the next test...
-  size_t *new = xmalloc(nn);
-  size_t *ptr = (size_t*)prev-1;
-  //printf("xrealloc(%ld, %ld)\n", *ptr, nn);
-  
-  memset(new, 0, nn);
-  if (nn >= *ptr)
-  	memcpy(new, prev, *ptr-sizeof(size_t));
-  
-  xfree(prev);
-  
-  return new;
+	// TODO: implement a working realloc
+	// This is where we are failing the next test...
+	size_t *new = xmalloc(nn);
+	size_t *ptr = (size_t*)prev-1;
+	//printf("xrealloc(%ld, %ld)\n", *ptr, nn);
+	
+	memset(new, 0, nn);
+	if (nn >= *ptr)
+		memcpy(new, prev, *ptr-sizeof(size_t));
+	
+	xfree(prev);
+	
+	return new;
 }
 
 
