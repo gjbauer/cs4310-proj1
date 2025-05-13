@@ -21,10 +21,6 @@ typedef struct header {
 	size_t size;
 } header;
 
-typedef struct footer {
-	size_t position;
-} footer;
-
 pm_stats* pgetstats();
 void pprintstats();
 
@@ -37,7 +33,6 @@ typedef struct size24_block {
 	size_t size;
 	struct size24_block *next;
 	size_t _unused;
-	size_t position;
 } size24_block;
 
 typedef struct size32_block {
