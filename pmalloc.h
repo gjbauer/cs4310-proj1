@@ -89,13 +89,4 @@ typedef struct size2056_block {
 	size_t _unused[255];
 } size2056_block;
 
-#define lowerbits(x) (x & 0xFFFFFFFF)
-#define tolowerbits(x) ((x >> 16) & 0xFFFFFFFF)
-
-#define higherbits(x) (x & 0xFFFFFFFF00000000)
-#define tohigherbits(x) (x << 16)
-
-#define setlowerbits(x, y) ((x & 0xFFFFFFFF00000000) | (y & 0xFFFFFFFF))
-#define sethigherbits(x, y) ((x & 0xFFFFFFFF) | (y << 16))
-
 #endif
